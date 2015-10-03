@@ -67,23 +67,23 @@ object glove {
   def vectorsFromFile(path: Path): Iterator[(String, V)] = {
     val reader = Files.newBufferedReader(path)
     Iterator.continually(reader.readLine()).takeWhile(line =>
-      if (line == null) {
-        reader.close()
-        false
-      } else true
+      if (line == null) { reader.close(); false } else true
     ).map(vectorFromLine)
   }
 
   def analogiesFromFolder(path: Path): Iterator[(String, String, String, String)] =
-    path.toFile.list().iterator.flatMap(file =>
-      Files.lines(path resolve file).iterator map { line =>
+    path.toFile.list().iterator.flatMap { file =>
+      val reader = Files.newBufferedReader(path resolve file)
+      Iterator.continually(reader.readLine()).takeWhile(line =>
+        if (line == null) { reader.close(); false } else true
+      ) map { line =>
         val words = line split "\\s+"
-        try {(words(0), words(1), words(2), words(3))} catch {
+        try { (words(0), words(1), words(2), words(3)) } catch {
           case ex: IndexOutOfBoundsException =>
             throw new IllegalStateException(s"Line '$line' is invalid", ex)
         }
       }
-    )
+    }
 
   // ------------------------------------------------------------
 
