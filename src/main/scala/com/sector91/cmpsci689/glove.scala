@@ -14,12 +14,12 @@ object glove extends App {
 
   def cos(a: V, b: V): Double = (a.t * b) / (Math.sqrt(norm(a)) * Math.sqrt(norm(b)))
 
-  def argmax[T](src: Iterator[T])(fn: T => Double): T = {
-    val first = src.next()
-    src.foldLeft(first -> fn(first)){ (last, t) =>
+  def argmax[T](src: Seq[T])(fn: T => Double): T = {
+    val first = src.head
+    src.tail.par.aggregate(first -> fn(first))((last, t) => {
       val next = fn(t)
       if (next > last._2) t -> next else last
-    }._1
+    }, (a, b) => if (b._2 > a._2) b else a)._1
   }
 
   private def find3(lines: Iterator[(String, V)])(a: String, b: String, x: String): (V, V, V) = {
@@ -45,14 +45,14 @@ object glove extends App {
     )
   }
 
-  def cosaddAnalogy(lines: () => Iterator[(String, V)])(a: String, b: String, x: String): String = {
-    val (av, bv, xv) = find3(lines())(a, b, x)
-    argmax(lines())(line => cos(line._2, xv - av + bv))._1
+  def cosaddAnalogy(lines: Seq[(String, V)])(a: String, b: String, x: String): String = {
+    val (av, bv, xv) = find3(lines.iterator)(a, b, x)
+    argmax(lines)(line => cos(line._2, xv - av + bv))._1
   }
 
-  def cosmulAnalogy(lines: () => Iterator[(String, V)])(a: String, b: String, x: String): String = {
-    val (av, bv, xv) = find3(lines())(a, b, x)
-    argmax(lines()) { case (_, yv) =>
+  def cosmulAnalogy(lines: Seq[(String, V)])(a: String, b: String, x: String): String = {
+    val (av, bv, xv) = find3(lines.iterator)(a, b, x)
+    argmax(lines) { case (_, yv) =>
       (cos(yv, bv) * cos(yv, xv)) / (cos(yv, av) + Double.MinPositiveValue)
     }._1
   }
@@ -89,16 +89,20 @@ object glove extends App {
 
   def googleAnalogiesPercentage(vectorFile: String): (Double, Double) = {
     val analogies = analogiesFromFolder(Paths get "./data/google").toArray
+    val count = analogies.length
     val vectorPath = Paths get "./data" resolve vectorFile
     val storedVectors = vectorsFromFile(vectorPath).toArray
-    val vectors = () => storedVectors.iterator
-    val result = analogies.par.aggregate(DenseVector(0, 0, 0))((accum, analogy) =>
-      analogy match { case (a, b, x, y) =>
-        val addMatch = cosaddAnalogy(vectors)(a, b, x) == y
-        val mulMatch = cosmulAnalogy(vectors)(a, b, x) == y
-        accum + DenseVector(1, if (addMatch) 1 else 0, if (mulMatch) 1 else 0)
+    val result = analogies.foldLeft(DenseVector(0, 0, 0)) { (accum, analogy) =>
+      if (accum(0) % 50 == 0) {
+        println(s"Completed ${accum(0)}/$count analogies (${((accum(0).toDouble / count.toDouble) * 100.0).toInt}%)")
       }
-    , _+_)
+      analogy match {
+        case (a, b, x, y) =>
+          val addMatch = cosaddAnalogy(storedVectors)(a, b, x) == y
+          val mulMatch = cosmulAnalogy(storedVectors)(a, b, x) == y
+          accum + DenseVector(1, if (addMatch) 1 else 0, if (mulMatch) 1 else 0)
+      }
+    }
     val total = result(0)
     val add = result(1)
     val mul = result(2)
