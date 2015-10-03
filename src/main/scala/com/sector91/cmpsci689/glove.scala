@@ -8,7 +8,7 @@ import breeze.linalg._
 
 import scala.collection.JavaConversions._
 
-object glove extends App {
+object glove {
 
   type V = DenseVector[Double]
 
@@ -109,10 +109,12 @@ object glove extends App {
     ((add.toDouble / total.toDouble) * 100.0, (mul.toDouble / total.toDouble) * 100.0)
   }
 
-  private val format = new SimpleDateFormat("h:mm:ss a")
-  println(s"STARTED at ${format.format(Calendar.getInstance().getTime)}")
-  private val (addPercent, mulPercent) = googleAnalogiesPercentage(args(0))
-  println(s"ENDED at ${format.format(Calendar.getInstance().getTime)}")
-  println(s"Google analogies COSADD performance: $addPercent%")
-  println(s"Google analogies COSMUL performance: $mulPercent%")
+  def runGoogle(vectorFile: String): Unit = {
+    val format = new SimpleDateFormat("h:mm:ss a")
+    println(s"STARTED at ${format.format(Calendar.getInstance().getTime)}")
+    val (addPercent, mulPercent) = googleAnalogiesPercentage(vectorFile)
+    println(s"ENDED at ${format.format(Calendar.getInstance().getTime)}")
+    println(s"Google analogies COSADD performance: $addPercent%")
+    println(s"Google analogies COSMUL performance: $mulPercent%")
+  }
 }
