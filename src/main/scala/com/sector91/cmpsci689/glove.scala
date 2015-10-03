@@ -2,8 +2,7 @@ package com.sector91.cmpsci689
 
 import java.nio.file.{Paths, Files, Path}
 import java.text.SimpleDateFormat
-import java.time.Instant
-import java.util.Date
+import java.util.Calendar
 
 import breeze.linalg._
 
@@ -65,12 +64,19 @@ object glove extends App {
     (arr.head, DenseVector(arr.tail map java.lang.Double.parseDouble))
   }
 
-  def vectorsFromFile(path: Path): Iterator[(String, V)] =
-    Files.lines(path).iterator.map(vectorFromLine)
+  def vectorsFromFile(path: Path): Iterator[(String, V)] = {
+    val reader = Files.newBufferedReader(path)
+    Iterator.continually(reader.readLine()).takeWhile(line =>
+      if (line == null) {
+        reader.close()
+        false
+      } else true
+    ).map(vectorFromLine)
+  }
 
   def analogiesFromFolder(path: Path): Iterator[(String, String, String, String)] =
-    Files.list(path).iterator.flatMap(subpath =>
-      Files.lines(subpath).iterator map { line =>
+    path.toFile.list().iterator.flatMap(file =>
+      Files.lines(path resolve file).iterator map { line =>
         val words = line split "\\s+"
         try {(words(0), words(1), words(2), words(3))} catch {
           case ex: IndexOutOfBoundsException =>
@@ -100,9 +106,9 @@ object glove extends App {
   }
 
   private val format = new SimpleDateFormat("h:mm:ss a")
-  println(s"STARTED at ${format.format(Date from Instant.now())}")
+  println(s"STARTED at ${format.format(Calendar.getInstance().getTime)}")
   private val (addPercent, mulPercent) = googleAnalogiesPercentage(args(0))
-  println(s"ENDED at ${format.format(Date from Instant.now())}")
+  println(s"ENDED at ${format.format(Calendar.getInstance().getTime)}")
   println(s"Google analogies COSADD performance: $addPercent%")
   println(s"Google analogies COSMUL performance: $mulPercent%")
 }
