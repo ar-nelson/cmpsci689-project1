@@ -1,13 +1,10 @@
 package com.sector91.cmpsci689
 
-import java.nio.charset.Charset
-import java.nio.file.{Paths, Files, Path}
+import java.nio.file.{Paths, Path}
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
 import breeze.linalg._
-
-import scala.collection.JavaConversions._
 
 object glove {
 
@@ -65,26 +62,19 @@ object glove {
     (arr.head, DenseVector(arr.tail map java.lang.Double.parseDouble))
   }
 
-  def vectorsFromFile(path: Path): Iterator[(String, V)] = {
-    val reader = Files.newBufferedReader(path, Charset.defaultCharset())
-    Iterator.continually(reader.readLine()).takeWhile(line =>
-      if (line == null) { reader.close(); false } else true
-    ).map(vectorFromLine)
-  }
+  def vectorsFromFile(path: Path): Iterator[(String, V)] =
+    scala.io.Source.fromFile(path.toUri).getLines().map(vectorFromLine)
 
   def analogiesFromFolder(path: Path): Iterator[(String, String, String, String)] =
-    path.toFile.list().iterator.flatMap { file =>
-      val reader = Files.newBufferedReader(path resolve file, Charset.defaultCharset())
-      Iterator.continually(reader.readLine()).takeWhile(line =>
-        if (line == null) { reader.close(); false } else true
-      ) map { line =>
+    path.toFile.list().iterator.flatMap(file =>
+      scala.io.Source.fromFile(path.resolve(file).toUri).getLines() map { line =>
         val words = line split "\\s+"
         try { (words(0), words(1), words(2), words(3)) } catch {
           case ex: IndexOutOfBoundsException =>
             throw new IllegalStateException(s"Line '$line' is invalid", ex)
         }
       }
-    }
+    )
 
   // ------------------------------------------------------------
 
