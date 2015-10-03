@@ -1,5 +1,6 @@
 package com.sector91.cmpsci689
 
+import java.nio.charset.Charset
 import java.nio.file.{Paths, Files, Path}
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -65,7 +66,7 @@ object glove {
   }
 
   def vectorsFromFile(path: Path): Iterator[(String, V)] = {
-    val reader = Files.newBufferedReader(path)
+    val reader = Files.newBufferedReader(path, Charset.defaultCharset())
     Iterator.continually(reader.readLine()).takeWhile(line =>
       if (line == null) { reader.close(); false } else true
     ).map(vectorFromLine)
@@ -73,7 +74,7 @@ object glove {
 
   def analogiesFromFolder(path: Path): Iterator[(String, String, String, String)] =
     path.toFile.list().iterator.flatMap { file =>
-      val reader = Files.newBufferedReader(path resolve file)
+      val reader = Files.newBufferedReader(path resolve file, Charset.defaultCharset())
       Iterator.continually(reader.readLine()).takeWhile(line =>
         if (line == null) { reader.close(); false } else true
       ) map { line =>
