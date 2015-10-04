@@ -1,6 +1,6 @@
 package com.sector91.cmpsci689
 
-import java.io.{FileOutputStream, PrintStream, PrintWriter}
+import java.io.PrintStream
 import java.nio.file.{Files, Paths, Path}
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -100,20 +100,26 @@ object glove {
     val vectorPath = Paths get "./data" resolve vectorFile
     val root = Paths.get("./data/msr")
     val files = root.toFile.list()
-    var count = 0
+    var count = 1
     var totalAddPercent = 0.0
     var totalMulPercent = 0.0
     files foreach { file =>
-      count += 1
       println(s"ANALOGY FILE $count/${files.length}: $file")
-      val (addPercent, mulPercent) = analogiesPercentage(vectorPath, root resolve file)
-      totalAddPercent += addPercent
-      totalMulPercent += mulPercent
-      out.println(s"$file COSADD performance: $addPercent%")
-      out.println(s"$file COSMUL performance: $mulPercent%")
+      try {
+        val (addPercent, mulPercent) = analogiesPercentage(vectorPath, root resolve file)
+        totalAddPercent += addPercent
+        totalMulPercent += mulPercent
+        out.println(s"$file COSADD performance: $addPercent%")
+        out.println(s"$file COSMUL performance: $mulPercent%")
+        count += 1
+      } catch {
+        case ex: NoSuchElementException =>
+          println(s"Encountered missing word: ${ex.getMessage}. File skipped.")
+          out.println(s"Encountered missing word: ${ex.getMessage}. File $file skipped.")
+      }
     }
-    out.println(s"Total MSR COSADD performance: ${totalAddPercent / count.toDouble}%")
-    out.println(s"Total MSR COSMUL performance: ${totalMulPercent / count.toDouble}%")
+    out.println(s"Total MSR COSADD performance: ${totalAddPercent / files.length.toDouble}%")
+    out.println(s"Total MSR COSMUL performance: ${totalMulPercent / files.length.toDouble}%")
     out.println(s"ENDED at $now")
   }
 
@@ -122,20 +128,26 @@ object glove {
     val vectorPath = Paths get "./data" resolve vectorFile
     val root = Paths.get("./data/google")
     val files = root.toFile.list()
-    var count = 0
+    var count = 1
     var totalAddPercent = 0.0
     var totalMulPercent = 0.0
     files foreach { file =>
-      count += 1
       println(s"ANALOGY FILE $count/${files.length}: $file")
-      val (addPercent, mulPercent) = analogiesPercentage(vectorPath, root resolve file)
-      totalAddPercent += addPercent
-      totalMulPercent += mulPercent
-      out.println(s"$file COSADD performance: $addPercent%")
-      out.println(s"$file COSMUL performance: $mulPercent%")
+      try {
+        val (addPercent, mulPercent) = analogiesPercentage(vectorPath, root resolve file)
+        totalAddPercent += addPercent
+        totalMulPercent += mulPercent
+        out.println(s"$file COSADD performance: $addPercent%")
+        out.println(s"$file COSMUL performance: $mulPercent%")
+        count += 1
+      } catch {
+        case ex: NoSuchElementException =>
+          println(s"Encountered missing word: ${ex.getMessage}. File skipped.")
+          out.println(s"Encountered missing word: ${ex.getMessage}. File $file skipped.")
+      }
     }
-    out.println(s"Total Google COSADD performance: ${totalAddPercent / count.toDouble}%")
-    out.println(s"Total Google COSMUL performance: ${totalMulPercent / count.toDouble}%")
+    out.println(s"Total Google COSADD performance: ${totalAddPercent / files.length.toDouble}%")
+    out.println(s"Total Google COSMUL performance: ${totalMulPercent / files.length.toDouble}%")
     out.println(s"ENDED at $now")
   }
 
