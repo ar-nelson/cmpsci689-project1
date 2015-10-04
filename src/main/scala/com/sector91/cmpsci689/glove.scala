@@ -3,67 +3,57 @@ package com.sector91.cmpsci689
 import java.nio.file.{Paths, Path}
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.LinkedHashMap
 
 import breeze.linalg._
+
+import scala.collection.JavaConversions._
 
 object glove {
 
   type V = DenseVector[Double]
 
-  def cos(a: V, b: V): Double = (a.t * b) / (Math.sqrt(norm(a)) * Math.sqrt(norm(b)))
+  def cos(a: V, b: V): Double = {
+    val num: Double = a dot b
+    val den: Double = Math.sqrt(norm(a)) * Math.sqrt(norm(b))
+    num / den
+  }
 
-  def argmax[T](src: Seq[T])(fn: T => Double): T = {
-    val first = src.head
-    src.tail.par.aggregate(first -> fn(first))((last, t) => {
+  def argmax[T](src: Iterator[T])(fn: T => Double): T = {
+    val first = src.next()
+    src.foldLeft(first -> fn(first))((last, t) => {
       val next = fn(t)
       if (next > last._2) t -> next else last
-    }, (a, b) => if (b._2 > a._2) b else a)._1
+    })._1
   }
 
-  private def find3(lines: Iterator[(String, V)])(a: String, b: String, x: String): (V, V, V) = {
-    var av = Option.empty[V]
-    var bv = Option.empty[V]
-    var xv = Option.empty[V]
-    var searching = true
-    lines takeWhile (_ => searching) collect {
-      case (l, v) if l == a =>
-        av = Some(v)
-        bv.isEmpty || xv.isEmpty
-      case (l, v) if l == b =>
-        bv = Some(v)
-        av.isEmpty || xv.isEmpty
-      case (l, v) if l == x =>
-        xv = Some(v)
-        av.isEmpty || bv.isEmpty
-    } foreach (searching = _)
-    (
-      av getOrElse (throw new RuntimeException(s"Word $a not found in dataset")),
-      bv getOrElse (throw new RuntimeException(s"Word $b not found in dataset")),
-      xv getOrElse (throw new RuntimeException(s"Word $x not found in dataset"))
-    )
+  def cosaddAnalogy(lines: LinkedHashMap[String, V])(a: String, b: String, x: String): String = {
+    val av = lines get a
+    val bv = lines get b
+    val xv = lines get x
+    argmax(lines.entrySet.iterator)(entry => cos(entry.getValue, xv - av + bv)).getKey
   }
 
-  def cosaddAnalogy(lines: Seq[(String, V)])(a: String, b: String, x: String): String = {
-    val (av, bv, xv) = find3(lines.iterator)(a, b, x)
-    argmax(lines)(line => cos(line._2, xv - av + bv))._1
-  }
-
-  def cosmulAnalogy(lines: Seq[(String, V)])(a: String, b: String, x: String): String = {
-    val (av, bv, xv) = find3(lines.iterator)(a, b, x)
-    argmax(lines) { case (_, yv) =>
+  def cosmulAnalogy(lines: LinkedHashMap[String, V])(a: String, b: String, x: String): String = {
+    val av = lines get a
+    val bv = lines get b
+    val xv = lines get x
+    argmax(lines.entrySet.iterator) { entry =>
+      val yv = entry.getValue
       (cos(yv, bv) * cos(yv, xv)) / (cos(yv, av) + Double.MinPositiveValue)
-    }._1
+    }.getKey
   }
 
   // ------------------------------------------------------------
 
-  def vectorFromLine(line: String): (String, V) = {
-    val arr = line split "\\s"
-    (arr.head, DenseVector(arr.tail map java.lang.Double.parseDouble))
+  def vectorsFromFile(path: Path): LinkedHashMap[String, V] = {
+    val map = new LinkedHashMap[String, V]()
+    scala.io.Source.fromFile(path.toUri).getLines() foreach { line =>
+      val arr = line split "\\s"
+      map.put(arr.head, DenseVector(arr.tail map java.lang.Double.parseDouble))
+    }
+    map
   }
-
-  def vectorsFromFile(path: Path): Iterator[(String, V)] =
-    scala.io.Source.fromFile(path.toUri).getLines().map(vectorFromLine)
 
   def analogiesFromFolder(path: Path): Iterator[(String, String, String, String)] =
     path.toFile.list().iterator.flatMap(file =>
@@ -78,22 +68,26 @@ object glove {
 
   // ------------------------------------------------------------
 
+  private val format = new SimpleDateFormat("h:mm:ss a")
+  private def now = format.format(Calendar.getInstance().getTime)
+
   def googleAnalogiesPercentage(vectorFile: String): (Double, Double) = {
     val analogies = analogiesFromFolder(Paths get "./data/google").toArray
     val count = analogies.length
     val vectorPath = Paths get "./data" resolve vectorFile
-    val storedVectors = vectorsFromFile(vectorPath).toArray
-    val result = analogies.foldLeft(DenseVector(0, 0, 0)) { (accum, analogy) =>
+    val vectors = vectorsFromFile(vectorPath)
+    val result = analogies.par.aggregate(DenseVector(0, 0, 0))({ (accum, analogy) =>
       if (accum(0) % 50 == 0) {
-        println(s"Completed ${accum(0)}/$count analogies (${((accum(0).toDouble / count.toDouble) * 100.0).toInt}%)")
+        println(s"Completed ${accum(0)}/$count analogies (${((accum(0).toDouble / count.toDouble) * 100.0).toInt}%) - $now")
       }
       analogy match {
         case (a, b, x, y) =>
-          val addMatch = cosaddAnalogy(storedVectors)(a, b, x) == y
-          val mulMatch = cosmulAnalogy(storedVectors)(a, b, x) == y
+          println(s"#${accum(0)} - $a:$b::$x:$y - $now")
+          val addMatch = cosaddAnalogy(vectors)(a, b, x) == y
+          val mulMatch = cosmulAnalogy(vectors)(a, b, x) == y
           accum + DenseVector(1, if (addMatch) 1 else 0, if (mulMatch) 1 else 0)
       }
-    }
+    }, _+_)
     val total = result(0)
     val add = result(1)
     val mul = result(2)
@@ -101,10 +95,9 @@ object glove {
   }
 
   def runGoogle(vectorFile: String): Unit = {
-    val format = new SimpleDateFormat("h:mm:ss a")
-    println(s"STARTED at ${format.format(Calendar.getInstance().getTime)}")
+    println(s"STARTED at $now")
     val (addPercent, mulPercent) = googleAnalogiesPercentage(vectorFile)
-    println(s"ENDED at ${format.format(Calendar.getInstance().getTime)}")
+    println(s"ENDED at $now")
     println(s"Google analogies COSADD performance: $addPercent%")
     println(s"Google analogies COSMUL performance: $mulPercent%")
   }
