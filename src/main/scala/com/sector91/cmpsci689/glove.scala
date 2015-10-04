@@ -59,27 +59,24 @@ object glove {
     map
   }
 
-  def analogiesFromFolder(path: Path): Iterator[(String, String, String, String)] =
-    path.toFile.list().iterator.flatMap(file =>
-      scala.io.Source.fromFile(path.resolve(file).toUri)(scala.io.Codec.UTF8).getLines() map { line =>
-        val words = line split "\\s+"
-        try { (words(0), words(1), words(2), words(3)) } catch {
-          case ex: IndexOutOfBoundsException =>
-            throw new IllegalStateException(s"Line '$line' is invalid", ex)
-        }
+  def analogiesFromFile(path: Path): Iterator[(String, String, String, String)] =
+    scala.io.Source.fromFile(path.toUri)(scala.io.Codec.UTF8).getLines() map { line =>
+      val words = line split "\\s+"
+      try { (words(0), words(1), words(2), words(3)) } catch {
+        case ex: IndexOutOfBoundsException =>
+          throw new IllegalStateException(s"Line '$line' is invalid", ex)
       }
-    )
+    }
 
   // ------------------------------------------------------------
 
   private val format = new SimpleDateFormat("h:mm:ss a")
   private def now = format.format(Calendar.getInstance().getTime)
 
-  def analogiesPercentage(vectorFile: String, analogiesFolder: String): (Double, Double) = {
-    val analogies = analogiesFromFolder(Paths get s"./data" resolve analogiesFolder).toArray
+  def analogiesPercentage(vectorFile: Path, analogiesFile: Path): (Double, Double) = {
+    val analogies = analogiesFromFile(analogiesFile).toArray
     val count = analogies.length
-    val vectorPath = Paths get "./data" resolve vectorFile
-    val vectors = vectorsFromFile(vectorPath)
+    val vectors = vectorsFromFile(vectorFile)
     val result = analogies.foldLeft(DenseVector(0, 0, 0))({ (accum, analogy) =>
       if (accum(0) % 50 == 0) {
         println(s"Completed ${accum(0)}/$count analogies (${((accum(0).toDouble / count.toDouble) * 100.0).toInt}%) - $now")
@@ -100,18 +97,46 @@ object glove {
 
   def runMSR(vectorFile: String, out: PrintStream = System.out): Unit = {
     out.println(s"STARTED at $now")
-    val (addPercent, mulPercent) = analogiesPercentage(vectorFile, "msr")
+    val vectorPath = Paths get "./data" resolve vectorFile
+    val root = Paths.get("./data/msr")
+    val files = root.toFile.list()
+    var count = 0
+    var totalAddPercent = 0.0
+    var totalMulPercent = 0.0
+    files foreach { file =>
+      count += 1
+      println(s"ANALOGY FILE $count/${files.length}: $file")
+      val (addPercent, mulPercent) = analogiesPercentage(vectorPath, root resolve file)
+      totalAddPercent += addPercent
+      totalMulPercent += mulPercent
+      out.println(s"$file COSADD performance: $addPercent%")
+      out.println(s"$file COSMUL performance: $mulPercent%")
+    }
+    out.println(s"Total MSR COSADD performance: ${totalAddPercent / count.toDouble}%")
+    out.println(s"Total MSR COSMUL performance: ${totalMulPercent / count.toDouble}%")
     out.println(s"ENDED at $now")
-    out.println(s"MSR analogies COSADD performance: $addPercent%")
-    out.println(s"MSR analogies COSMUL performance: $mulPercent%")
   }
 
   def runGoogle(vectorFile: String, out: PrintStream = System.out): Unit = {
     out.println(s"STARTED at $now")
-    val (addPercent, mulPercent) = analogiesPercentage(vectorFile, "google")
+    val vectorPath = Paths get "./data" resolve vectorFile
+    val root = Paths.get("./data/google")
+    val files = root.toFile.list()
+    var count = 0
+    var totalAddPercent = 0.0
+    var totalMulPercent = 0.0
+    files foreach { file =>
+      count += 1
+      println(s"ANALOGY FILE $count/${files.length}: $file")
+      val (addPercent, mulPercent) = analogiesPercentage(vectorPath, root resolve file)
+      totalAddPercent += addPercent
+      totalMulPercent += mulPercent
+      out.println(s"$file COSADD performance: $addPercent%")
+      out.println(s"$file COSMUL performance: $mulPercent%")
+    }
+    out.println(s"Total Google COSADD performance: ${totalAddPercent / count.toDouble}%")
+    out.println(s"Total Google COSMUL performance: ${totalMulPercent / count.toDouble}%")
     out.println(s"ENDED at $now")
-    out.println(s"Google analogies COSADD performance: $addPercent%")
-    out.println(s"Google analogies COSMUL performance: $mulPercent%")
   }
 
   def runAllAndSaveToFile(vectorFile: String, outFile: String): Unit = {
